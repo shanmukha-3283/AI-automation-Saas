@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "google-workspace": {
+      "serverUrl": "https://workspacemcp.googleapis.com/mcp/v1",
+      "authProviderType": "google_credentials"
+    },
+    "postgres-dev": {
+      "command": "node",
+      "args": [
+        "./tools/postgres-mcp-server.js"
+      ],
+      "env": {
+        "DATABASE_URL": "postgres://localhost:5432/ai_automation_dev"
+      }
+    },
+    "qdrant-dev": {
+      "command": "node",
+      "args": [
+        "./tools/qdrant-mcp-server.js"
+      ],
+      "env": {
+        "QDRANT_URL": "http://localhost:6333"
+      }
+    }
+  }
+}
