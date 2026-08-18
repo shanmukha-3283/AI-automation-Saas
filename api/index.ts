@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { healthRoute } from './routes/health.js';
 import { authRoute } from './routes/auth.js';
+import { adminRoute } from './routes/admin.js';
 import { clientsRoute } from './routes/clients.js';
 import { leadsRoute } from './routes/leads.js';
 import { webhookRoute } from './routes/webhook.js';
@@ -60,6 +61,7 @@ app.use('/api/*', async (c, next) => {
 // Route Mounts
 app.route('/health', healthRoute);
 app.route('/api/auth', authRoute);
+app.route('/api/admin', adminRoute);
 app.route('/api/clients', clientsRoute);
 app.route('/api/leads', leadsRoute);
 app.route('/api/webhook', webhookRoute);
@@ -81,13 +83,37 @@ app.notFound((c) => {
   return c.json({ success: false, error: 'Route not found' }, 404);
 });
 
+import { Server as SocketIOServer } from 'socket.io';
+
 const port = Number(process.env.PORT) || 3000;
 
 console.log(`🚀 Hono API Gateway starting on port ${port}...`);
 
-serve({
+const server = serve({
   fetch: app.fetch,
   port
+});
+
+// Attach Socket.io for Real-Time WebSockets
+export const io = new SocketIOServer(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ['GET', 'POST']
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log(`🔌 WebSocket connected: ${socket.id}`);
+  
+  // Clients join a room based on their clientId to receive scoped updates
+  socket.on('joinRoom', (clientId) => {
+    socket.join(clientId);
+    console.log(`Socket ${socket.id} joined room: ${clientId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`🔌 WebSocket disconnected: ${socket.id}`);
+  });
 });
 
 export default app;

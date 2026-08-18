@@ -6,9 +6,12 @@ export const leadStatusEnum = pgEnum('lead_status', ['new', 'qualifying', 'quali
 export const roleEnum = pgEnum('message_role', ['user', 'agent', 'system']);
 export const appointmentStatusEnum = pgEnum('appointment_status', ['scheduled', 'completed', 'canceled']);
 
+export const clientRoleEnum = pgEnum('client_role', ['superadmin', 'tenant']);
+
 // 1. Clients Table (Multi-Tenancy)
 export const clients = pgTable('clients', {
   id: uuid('id').primaryKey().defaultRandom(),
+  role: clientRoleEnum('role').default('tenant').notNull(),
   name: varchar('name', { length: 255 }).notNull(),
   email: varchar('email', { length: 255 }).notNull().unique(), // Owner email for login
   twilioAccountSid: varchar('twilio_account_sid', { length: 255 }),

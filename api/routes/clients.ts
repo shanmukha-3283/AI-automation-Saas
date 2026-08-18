@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { db } from '../../db/schema.js';
+import { db } from '../repositories/index.js';
 import * as schema from '../../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { zValidator } from '@hono/zod-validator';

@@ -113,15 +113,16 @@ export class WhatsAppAdapter {
    * Parses an incoming Twilio webhook payload into a clean, standardized format
    * for our internal agents to process.
    */
-  static parseIncomingWebhook(body: TwilioIncomingWebhook): StandardizedMessage {
-    const cleanPhone = (phoneStr: string) => phoneStr.replace('whatsapp:', '');
+  static parseIncomingWebhook(body: TwilioIncomingWebhook | Record<string, any>): StandardizedMessage {
+    console.log('[Webhook Debug] Raw incoming body:', body);
+    const cleanPhone = (phoneStr?: string) => (phoneStr || '').replace('whatsapp:', '');
 
     return {
-      messageId: body.MessageSid,
-      senderPhone: cleanPhone(body.From),
-      recipientPhone: cleanPhone(body.To),
+      messageId: body.MessageSid || `mock_${Date.now()}`,
+      senderPhone: cleanPhone(body.From as string),
+      recipientPhone: cleanPhone(body.To as string),
       text: body.Body || '',
-      senderProfileName: body.ProfileName,
+      senderProfileName: body.ProfileName as string,
     };
   }
 }

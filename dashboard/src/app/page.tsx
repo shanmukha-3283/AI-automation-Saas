@@ -24,6 +24,10 @@ export default async function Dashboard() {
     redirect('/login');
   }
 
+  if ((session.user as any).role === 'superadmin') {
+    redirect('/admin');
+  }
+
   const clientId = (session.user as any).clientId;
   const leads = await getLeads(clientId);
 

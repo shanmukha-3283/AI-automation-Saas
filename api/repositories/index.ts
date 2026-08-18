@@ -128,6 +128,17 @@ class LeadRepository {
       .returning();
     return lead || null;
   }
+
+  async update(clientId: string, id: string, data: Partial<CreateLeadInput>) {
+    const [lead] = await db.update(schema.leads)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(
+        eq(schema.leads.clientId, clientId),
+        eq(schema.leads.id, id)
+      ))
+      .returning();
+    return lead || null;
+  }
 }
 
 export const leadRepository = new LeadRepository();

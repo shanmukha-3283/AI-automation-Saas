@@ -36,6 +36,7 @@ authRoute.post('/login', async (c) => {
         twilioAuthToken: client.twilioAuthToken,
         twilioPhoneNumber: client.twilioPhoneNumber,
         systemPrompt: client.systemPrompt,
+        role: client.role,
       }
     });
 

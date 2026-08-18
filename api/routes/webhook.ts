@@ -5,6 +5,7 @@ import { searchFAQ } from '../../rag/qdrant-client.js';
 import { leadQualifierGraph, LeadQualifierState } from '../../agent/index.js';
 import { HumanMessage, AIMessage, BaseMessage, SystemMessage } from '@langchain/core/messages';
 import twilio from 'twilio';
+import { io } from '../index.js';
 
 export const webhookRoute = new Hono();
 
@@ -50,7 +51,9 @@ webhookRoute.post('/:clientId', async (c) => {
     const conversation = await conversationRepository.findOrCreate(client.id, lead.id, 'whatsapp');
     
     // Save user message to Postgres
-    await messageRepository.create(conversation.id, 'user', message.text);
+    const userMessage = await messageRepository.create(conversation.id, 'user', message.text);
+    io.to(client.id).emit('new_message', { ...userMessage, leadId: lead.id });
+    io.to(client.id).emit('lead_updated', lead);
 
     // 6. RAG FAQ Check
     let faqResults: { score: number; question: string; answer: string }[] = [];
@@ -85,7 +88,12 @@ webhookRoute.post('/:clientId', async (c) => {
       // Invoke the Lead Qualifier Graph
       const initialState: LeadQualifierState = {
         messages: langGraphMessages,
-        extractedInfo: {},
+        extractedInfo: {
+          name: lead.name !== 'Unknown User' ? lead.name : undefined,
+          email: lead.email && !lead.email.endsWith('@wa.lead') ? lead.email : undefined,
+          company: lead.company || undefined,
+          budget: lead.budget ? Number(lead.budget) : undefined,
+        },
         qualificationStatus: currentStatus as LeadQualifierState['qualificationStatus'],
         confidenceScore: 1.0,
       };
@@ -94,23 +102,26 @@ webhookRoute.post('/:clientId', async (c) => {
       
       // 8. PERSIST agent state back to DB
       if (resultState.qualificationStatus && resultState.qualificationStatus !== 'pending') {
-        await leadRepository.updateStatus(client.id, lead.id, resultState.qualificationStatus);
+        const updatedLead = await leadRepository.updateStatus(client.id, lead.id, resultState.qualificationStatus);
+        if (updatedLead) io.to(client.id).emit('lead_updated', updatedLead);
       } else if (lead.status === 'new') {
-        await leadRepository.updateStatus(client.id, lead.id, 'qualifying');
+        const updatedLead = await leadRepository.updateStatus(client.id, lead.id, 'qualifying');
+        if (updatedLead) io.to(client.id).emit('lead_updated', updatedLead);
       }
 
       // Update lead info if extraction found new data
       if (resultState.extractedInfo) {
         const info = resultState.extractedInfo;
         if (info.name || info.email || info.company || info.budget) {
-          await leadRepository.create({
+          const updatedLead = await leadRepository.update(client.id, lead.id, {
             clientId: client.id,
             name: info.name || lead.name,
             email: info.email || lead.email,
             phone: lead.phone || '',
             company: info.company || lead.company || undefined,
             budget: info.budget,
-          });
+          } as any);
+          if (updatedLead) io.to(client.id).emit('lead_updated', updatedLead);
         }
       }
       
@@ -124,7 +135,8 @@ webhookRoute.post('/:clientId', async (c) => {
     }
 
     // 9. Save AI Response to Postgres
-    await messageRepository.create(conversation.id, 'agent', finalResponse);
+    const agentMessage = await messageRepository.create(conversation.id, 'agent', finalResponse);
+    io.to(client.id).emit('new_message', { ...agentMessage, leadId: lead.id });
 
     // 10. Send the response back out via the Client's specific WhatsApp Adapter
     const adapter = new WhatsAppAdapter(

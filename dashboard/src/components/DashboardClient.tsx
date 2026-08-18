@@ -2,9 +2,10 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { io, Socket } from "socket.io-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -39,10 +40,16 @@ function StatusBadge({ status }: { status: Lead['status'] }) {
 }
 
 export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead[], clientId: string }) {
+  const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
   const router = useRouter();
+  
+  // Use a ref to access latest selectedLead in socket listener without re-binding
+  const selectedLeadRef = useRef(selectedLead);
+  selectedLeadRef.current = selectedLead;
 
   const fetchMessages = async (leadId: string) => {
     try {
@@ -66,15 +73,45 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
   };
 
   useEffect(() => {
-    if (!selectedLead) return;
-    
-    // Poll every 3 seconds for new messages
-    const interval = setInterval(() => {
-      fetchMessages(selectedLead.id);
-    }, 3000);
+    const socket: Socket = io(API_URL);
 
-    return () => clearInterval(interval);
-  }, [selectedLead, clientId]);
+    socket.on("connect", () => {
+      setSocketConnected(true);
+      socket.emit("joinRoom", clientId);
+    });
+
+    socket.on("disconnect", () => {
+      setSocketConnected(false);
+    });
+
+    socket.on("new_message", (msg: Message & { leadId: string }) => {
+      // If the message belongs to the currently selected lead, append it
+      if (selectedLeadRef.current?.id === msg.leadId) {
+        setMessages(prev => [...prev, msg]);
+      }
+      // You could also show a notification or update a read/unread counter here
+    });
+
+    socket.on("lead_updated", (updatedLead: Lead) => {
+      setLeads(prevLeads => {
+        const exists = prevLeads.find(l => l.id === updatedLead.id);
+        if (exists) {
+          return prevLeads.map(l => l.id === updatedLead.id ? updatedLead : l);
+        } else {
+          return [updatedLead, ...prevLeads];
+        }
+      });
+      
+      // Update selected lead details if it matches
+      if (selectedLeadRef.current?.id === updatedLead.id) {
+        setSelectedLead(updatedLead);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [clientId]);
 
   return (
     <main className="min-h-screen bg-surface-container-low p-8 text-on-surface font-body-md">
@@ -89,9 +126,9 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
             <p className="text-text-muted mt-1">Modern Corporate AI Pipeline.</p>
           </div>
           <div className="flex items-center space-x-4">
-            <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer border border-emerald-200 py-1.5 px-4 text-sm font-medium">
-              <span className="flex h-2 w-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
-              System Online
+            <Badge className={`${socketConnected ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'} transition-colors cursor-pointer border py-1.5 px-4 text-sm font-medium`}>
+              <span className={`flex h-2 w-2 rounded-full mr-2 animate-pulse ${socketConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+              {socketConnected ? 'System Online (Live)' : 'Reconnecting...'}
             </Badge>
             <button
               onClick={() => router.push('/settings')}
@@ -117,7 +154,7 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
               <CardTitle className="text-sm font-medium text-text-muted">Total Leads</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary-pure">{initialLeads.length}</div>
+              <div className="text-3xl font-bold text-primary-pure">{leads.length}</div>
             </CardContent>
           </Card>
           <Card className="bg-surface-pure border-border-subtle shadow-sm rounded-xl">
@@ -126,7 +163,7 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-emerald-600">
-                {initialLeads.filter(l => l.status === 'qualified').length}
+                {leads.filter(l => l.status === 'qualified').length}
               </div>
             </CardContent>
           </Card>
@@ -136,7 +173,7 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-rose-600">
-                {initialLeads.filter(l => l.status === 'escalated').length}
+                {leads.filter(l => l.status === 'escalated').length}
               </div>
             </CardContent>
           </Card>
@@ -163,14 +200,14 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {initialLeads.length === 0 ? (
+                  {leads.length === 0 ? (
                     <TableRow className="border-border-subtle">
                       <TableCell colSpan={5} className="h-32 text-center text-text-muted">
                         No leads detected. Start a conversation!
                       </TableCell>
                     </TableRow>
                   ) : (
-                    initialLeads.map((lead) => (
+                    leads.map((lead) => (
                       <TableRow 
                         key={lead.id} 
                         onClick={() => handleLeadClick(lead)}
@@ -184,7 +221,7 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
                         </TableCell>
                         <TableCell className="text-text-muted">{lead.company || '-'}</TableCell>
                         <TableCell className="text-primary-container font-medium">
-                          {lead.budget ? `$${Number(lead.budget).toLocaleString()}` : '-'}
+                          {lead.budget ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(lead.budget)) : '-'}
                         </TableCell>
                         <TableCell>
                           <StatusBadge status={lead.status} />

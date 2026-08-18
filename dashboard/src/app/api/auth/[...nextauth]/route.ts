@@ -32,6 +32,7 @@ export const authOptions: NextAuthOptions = {
               name: data.client.name,
               email: data.client.email,
               clientId: data.client.id, // Keep a reference to clientId
+              role: data.client.role, // Add role to token
             };
           }
           return null;
@@ -47,12 +48,14 @@ export const authOptions: NextAuthOptions = {
       // initial sign in
       if (user) {
         token.clientId = (user as any).clientId;
+        token.role = (user as any).role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         (session.user as any).clientId = token.clientId;
+        (session.user as any).role = token.role;
       }
       return session;
     },

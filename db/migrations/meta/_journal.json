@@ -15,6 +15,13 @@
       "when": 1786875914172,
       "tag": "0001_adorable_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786961655129,
+      "tag": "0002_sloppy_marvel_boy",
+      "breakpoints": true
     }
   ]
 }
