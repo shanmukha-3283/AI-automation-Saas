@@ -1,6 +1,7 @@
 import { LeadQualifierState } from '../state.js';
 import { ChatOpenAI } from '@langchain/openai';
 import { z } from 'zod';
+import { clientRepository } from '../../api/repositories/index.js';
 
 const extractionSchema = z.object({
   name: z.string().optional().describe("The lead's name"),
@@ -13,7 +14,17 @@ export const extractLeadInfo = async (state: LeadQualifierState): Promise<Partia
   try {
     const llm = new ChatOpenAI({
       modelName: 'gpt-4o-mini',
-      temperature: 0
+      temperature: 0,
+      callbacks: [
+        {
+          handleLLMEnd: async (output: any) => {
+            const tokens = output.llmOutput?.tokenUsage?.totalTokens || 0;
+            if (tokens > 0 && state.clientId) {
+              await clientRepository.incrementTokenUsage(state.clientId, tokens);
+            }
+          }
+        }
+      ]
     });
 
     const structuredLlm = llm.withStructuredOutput(extractionSchema);

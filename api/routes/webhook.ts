@@ -55,6 +55,15 @@ webhookRoute.post('/:clientId', async (c) => {
     io.to(client.id).emit('new_message', { ...userMessage, leadId: lead.id });
     io.to(client.id).emit('lead_updated', lead);
 
+    // 5.5 AI Pause Check (Human Override)
+    if (conversation.aiPausedAt) {
+      const hoursSincePause = (Date.now() - new Date(conversation.aiPausedAt).getTime()) / (1000 * 60 * 60);
+      if (hoursSincePause < 24) {
+        console.log(`[Webhook] AI is paused for conversation ${conversation.id}. Human is handling this.`);
+        return c.text('OK');
+      }
+    }
+
     // 6. RAG FAQ Check
     let faqResults: { score: number; question: string; answer: string }[] = [];
     try {
@@ -96,6 +105,7 @@ webhookRoute.post('/:clientId', async (c) => {
         },
         qualificationStatus: currentStatus as LeadQualifierState['qualificationStatus'],
         confidenceScore: 1.0,
+        clientId: client.id,
       };
 
       const resultState = (await leadQualifierGraph.invoke(initialState as any)) as unknown as LeadQualifierState;
@@ -104,6 +114,20 @@ webhookRoute.post('/:clientId', async (c) => {
       if (resultState.qualificationStatus && resultState.qualificationStatus !== 'pending') {
         const updatedLead = await leadRepository.updateStatus(client.id, lead.id, resultState.qualificationStatus);
         if (updatedLead) io.to(client.id).emit('lead_updated', updatedLead);
+
+        // Immediate Escalation Notification
+        if (resultState.qualificationStatus === 'escalated' && client.escalationWebhookUrl) {
+          fetch(client.escalationWebhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'lead.escalated',
+              lead: { id: lead.id, name: lead.name, phone: lead.phone, email: lead.email },
+              message: `🚨 Lead escalated: ${lead.name}. Please take over in the dashboard.`
+            })
+          }).catch(err => console.error('[Webhook] Failed to send escalation alert:', err));
+        }
+
       } else if (lead.status === 'new') {
         const updatedLead = await leadRepository.updateStatus(client.id, lead.id, 'qualifying');
         if (updatedLead) io.to(client.id).emit('lead_updated', updatedLead);

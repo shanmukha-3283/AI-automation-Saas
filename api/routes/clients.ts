@@ -21,6 +21,7 @@ const updateClientSchema = z.object({
   twilioAuthToken: z.string().optional().nullable(),
   twilioPhoneNumber: z.string().optional().nullable(),
   systemPrompt: z.string().optional().nullable(),
+  escalationWebhookUrl: z.string().url().optional().nullable(),
 });
 
 // GET /api/clients/me
@@ -56,6 +57,7 @@ clientsRoute.put('/me', zValidator('json', updateClientSchema), async (c) => {
         twilioAuthToken: data.twilioAuthToken,
         twilioPhoneNumber: data.twilioPhoneNumber,
         systemPrompt: data.systemPrompt,
+        escalationWebhookUrl: data.escalationWebhookUrl,
         updatedAt: new Date()
       })
       .where(eq(schema.clients.id, clientId))

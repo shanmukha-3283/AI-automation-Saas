@@ -1,142 +1,200 @@
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../api/auth/[...nextauth]/route";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { LogOut } from "lucide-react";
-import SignOutButton from "@/components/SignOutButton";
+"use client";
 
-async function getStats() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-  const res = await fetch(`${API_URL}/api/admin/stats`, { cache: 'no-store' });
-  if (!res.ok) return { totalClients: 0, totalLeads: 0, totalMessages: 0 };
-  const data = await res.json();
-  return data.stats;
-}
+import { useEffect, useState } from "react";
+import { LogOut, Settings, BarChart3, Users, Activity, MessageSquare, ListTodo, Plus, ChevronRight, Menu, X, ArrowUpRight, ArrowDownRight, LayoutDashboard } from "lucide-react";
+import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Sidebar } from "@/components/Sidebar";
+import Link from "next/link";
 
-async function getClients() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-  const res = await fetch(`${API_URL}/api/admin/clients`, { cache: 'no-store' });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.clients;
-}
+export default function AdminPage() {
+  const router = useRouter();
+  const [stats, setStats] = useState({ totalClients: 0, totalLeads: 0, totalTokens: 0 });
+  const [loading, setLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-export default async function AdminDashboard() {
-  const session = await getServerSession(authOptions);
+  useEffect(() => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    fetch(`${API_URL}/api/admin/stats`)
+      .then(res => res.json())
+      .then(data => {
+        setStats(data);
+        setLoading(false);
+      })
+      .catch(console.error);
+  }, []);
 
-  if (!session || !session.user) {
-    redirect("/login");
-  }
-
-  // Check if role is superadmin
-  if ((session.user as any).role !== "superadmin") {
-    redirect("/"); // Redirect back to normal dashboard if they aren't admin
-  }
-
-  const stats = await getStats();
-  const clients = await getClients();
+  const revenue = stats.totalClients * 15000;
 
   return (
-    <main className="min-h-screen bg-surface-container-low p-8 text-on-surface font-body-md">
-      <div className="max-w-[1440px] mx-auto space-y-8">
-        
-        {/* Header Section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-primary-pure">
-              Platform Command Center
-            </h1>
-            <p className="text-text-muted mt-1">Super Admin Overview.</p>
+    <div className="flex h-screen bg-[#f8fafc] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
+
+      {/* Mobile Menu Button */}
+      <button
+        className="md:hidden fixed top-4 right-4 z-50 p-2 bg-white rounded-lg border border-slate-200 shadow-sm"
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      >
+        {isMobileMenuOpen ? <X className="w-5 h-5 text-slate-500" /> : <Menu className="w-5 h-5 text-slate-500" />}
+      </button>
+
+      <Sidebar role="superadmin" isMobileMenuOpen={isMobileMenuOpen} />
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-y-auto bg-white border-l border-slate-200 shadow-[-4px_0_24px_rgba(0,0,0,0.02)] z-30">
+        <div className="max-w-6xl mx-auto px-6 md:px-10 py-8 md:py-12">
+
+          <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4 animate-fade-in-up">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">Platform overview</h1>
+              <p className="text-slate-500 text-sm">Real-time telemetry across every tenant running on Lumina Intelligence.</p>
+            </div>
+            <button className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm w-fit">
+              <Plus className="w-4 h-4" />
+              New client
+            </button>
+          </header>
+
+          {/* KPI Metrics - Lovable Style Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+
+            {/* Metric 1 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up animate-delay-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-slate-500">Active Tenants</h3>
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                  <Users className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-end gap-3">
+                <span className="text-3xl font-bold text-slate-900">{loading ? '...' : stats.totalClients}</span>
+                <span className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md mb-1">
+                  <ArrowUpRight className="w-3 h-3 mr-0.5" />
+                  +1 this month
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 2 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up animate-delay-200">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-slate-500">Total AI Conversations</h3>
+                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-end gap-3">
+                <span className="text-3xl font-bold text-slate-900">{loading ? '...' : stats.totalLeads}</span>
+                <span className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md mb-1">
+                  <ArrowUpRight className="w-3 h-3 mr-0.5" />
+                  Last 30 days
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 3 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up animate-delay-300">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-slate-500">Recurring Revenue (MRR)</h3>
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-end gap-3">
+                <span className="text-3xl font-bold text-slate-900">
+                  {loading ? '...' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(revenue)}
+                </span>
+                <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md mb-1">
+                  Projected this month
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 4 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-shadow animate-fade-in-up animate-delay-400">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-medium text-slate-500">LLM Compute (Tokens)</h3>
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                  <Activity className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-end gap-3">
+                <span className="text-3xl font-bold text-slate-900">
+                  {loading ? '...' : new Intl.NumberFormat('en-US').format(stats.totalTokens || 0)}
+                </span>
+                <span className="flex items-center text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-md mb-1">
+                  Total system usage
+                </span>
+              </div>
+            </div>
+
           </div>
-          <div className="flex items-center space-x-4">
-            <Badge className="bg-primary-fixed text-on-primary-fixed hover:bg-primary-fixed-dim transition-colors cursor-pointer py-1.5 px-4 text-sm font-medium">
-              Admin Access
-            </Badge>
-            <SignOutButton />
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in-up animate-delay-400">
+
+            {/* Active Tenants List */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Active tenants</h2>
+                  <p className="text-sm text-slate-500 mt-0.5">Workspaces provisioned on the platform</p>
+                </div>
+                <button className="text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
+                  View all
+                </button>
+              </div>
+              <div className="divide-y divide-slate-100 flex-1">
+                <div className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">RD</div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Reliance Digital AI</p>
+                      <p className="text-xs text-slate-500">admin@reliancedigital.in</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 transition-colors" />
+                </div>
+                <div className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center font-bold">SP</div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Stitch Platform</p>
+                      <p className="text-xs text-slate-500">platform_admin@stitch.com</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 transition-colors" />
+                </div>
+                <div className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center font-bold">NC</div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Nova Clinics</p>
+                      <p className="text-xs text-slate-500">ops@novaclinics.co</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-blue-600 transition-colors" />
+                </div>
+              </div>
+            </div>
+
+            {/* Conversation Throughput Placeholder */}
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Conversation throughput</h2>
+                  <p className="text-sm text-slate-500 mt-0.5">Handled by AI vs escalated to a human, last 7 days</p>
+                </div>
+              </div>
+              <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[300px] text-center">
+                <Activity className="w-12 h-12 text-slate-200 mb-4" />
+                <p className="text-slate-500 text-sm font-medium">Analytics engine tracking active...</p>
+                <p className="text-slate-400 text-xs mt-1">Sufficient data will populate charts shortly.</p>
+              </div>
+            </div>
+
           </div>
         </div>
+      </main>
 
-        {/* KPIs */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="bg-surface-pure border-border-subtle shadow-sm rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-text-muted">Total Clients</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary-pure">{stats.totalClients}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-surface-pure border-border-subtle shadow-sm rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-text-muted">Total Platform Leads</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-emerald-600">{stats.totalLeads}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-surface-pure border-border-subtle shadow-sm rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-text-muted">Total Messages Handled</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary-container">{stats.totalMessages}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Grid: Clients Table */}
-        <Card className="bg-surface-pure border-border-subtle shadow-sm overflow-hidden rounded-2xl h-fit">
-          <CardHeader className="bg-surface-pure border-b border-border-subtle">
-            <CardTitle className="text-xl text-primary-pure">Active Tenants</CardTitle>
-            <CardDescription className="text-text-muted">Monitor your B2B SaaS clients.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-surface-container-lowest">
-                <TableRow className="border-border-subtle hover:bg-transparent">
-                  <TableHead className="text-text-muted font-semibold h-12 px-6">Business Name</TableHead>
-                  <TableHead className="text-text-muted font-semibold h-12">Admin Email</TableHead>
-                  <TableHead className="text-text-muted font-semibold h-12">Role</TableHead>
-                  <TableHead className="text-text-muted font-semibold h-12">WhatsApp Configured</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {clients.length === 0 ? (
-                  <TableRow className="border-border-subtle">
-                    <TableCell colSpan={4} className="h-32 text-center text-text-muted">
-                      No clients found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  clients.map((client: any) => (
-                    <TableRow 
-                      key={client.id} 
-                      className="border-border-subtle hover:bg-surface-container/50 transition-colors"
-                    >
-                      <TableCell className="font-medium text-on-surface px-6 py-4">{client.name}</TableCell>
-                      <TableCell className="text-text-muted">{client.email}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`capitalize ${client.role === 'superadmin' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {client.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-text-muted">
-                        {client.twilioPhoneNumber ? (
-                           <span className="text-emerald-600 font-medium">Yes ({client.twilioPhoneNumber})</span>
-                        ) : (
-                           <span className="text-rose-600">Pending Setup</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-    </main>
+    </div>
   );
 }

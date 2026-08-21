@@ -23,6 +23,9 @@ export interface LeadQualifierState {
   
   // Any errors encountered in nodes (Rule #4)
   error?: string;
+  
+  // Tenancy 
+  clientId: string;
 }
 
 // Reducers define how state updates are applied.
@@ -46,5 +49,9 @@ export const leadQualifierStateChannels: StateGraphArgs<LeadQualifierState>["cha
   error: {
     value: (x: string | undefined, y: string | undefined) => y,
     default: () => undefined,
+  },
+  clientId: {
+    value: (x: string, y: string) => y,
+    default: () => '',
   },
 };

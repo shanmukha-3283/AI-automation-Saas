@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "token_usage" integer DEFAULT 0 NOT NULL;

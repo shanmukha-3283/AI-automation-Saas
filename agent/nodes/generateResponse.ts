@@ -1,6 +1,7 @@
 import { LeadQualifierState } from '../state.js';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { AIMessage } from '@langchain/core/messages';
+import { clientRepository } from '../../api/repositories/index.js';
 import 'dotenv/config';
 
 export const generateResponse = async (state: LeadQualifierState): Promise<Partial<LeadQualifierState>> => {
@@ -8,7 +9,17 @@ export const generateResponse = async (state: LeadQualifierState): Promise<Parti
     // We use Claude 3.5 Sonnet for highly empathetic, human-sounding conversation
     const llm = new ChatAnthropic({
       modelName: 'claude-3-5-sonnet-latest',
-      temperature: 0.7 // slightly higher temperature for natural conversation
+      temperature: 0.7, // slightly higher temperature for natural conversation
+      callbacks: [
+        {
+          handleLLMEnd: async (output: any) => {
+            const tokens = output.llmOutput?.usage?.total_tokens || output.llmOutput?.tokenUsage?.totalTokens || 0;
+            if (tokens > 0 && state.clientId) {
+              await clientRepository.incrementTokenUsage(state.clientId, tokens);
+            }
+          }
+        }
+      ]
     });
 
     // Build context for Claude to understand what happened

@@ -101,6 +101,9 @@ leadsRoute.post('/:id/messages', async (c) => {
 
     const conversation = await conversationRepository.findOrCreate(clientId, id);
     
+    // Pause AI for 24 hours when human intervenes
+    await conversationRepository.updateAiPausedAt(conversation.id, new Date());
+    
     // Save to DB
     const message = await messageRepository.create(conversation.id, 'agent', content);
 

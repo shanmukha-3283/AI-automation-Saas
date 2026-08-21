@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
-import { db } from '../../db/schema.js'; 
-import { eq, count } from 'drizzle-orm';
+import { eq, count, sum } from 'drizzle-orm';
 import * as schema from '../../db/schema.js';
 
 export const adminRoute = new Hono();
@@ -17,6 +16,9 @@ adminRoute.get('/stats', async (c) => {
     
     // Total Messages
     const totalMessagesResult = await db.select({ value: count() }).from(schema.messages);
+    
+    // Total Tokens
+    const totalTokensResult = await db.select({ value: sum(schema.clients.tokenUsage) }).from(schema.clients);
 
     return c.json({
       success: true,
@@ -24,6 +26,7 @@ adminRoute.get('/stats', async (c) => {
         totalClients: totalClientsResult[0].value,
         totalLeads: totalLeadsResult[0].value,
         totalMessages: totalMessagesResult[0].value,
+        totalTokens: Number(totalTokensResult[0].value) || 0,
       }
     });
   } catch (error) {

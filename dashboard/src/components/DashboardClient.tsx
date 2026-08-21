@@ -6,11 +6,9 @@ import { useState, useEffect, useRef } from "react";
 import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ChatInterface, Message } from "@/components/ChatInterface"
-import { LogOut, Settings } from "lucide-react";
+import { LogOut, Settings, Search, Bell, Users, CheckCircle2, AlertCircle, Menu, X } from "lucide-react";
+import { Sidebar } from "@/components/Sidebar";
 
 export interface Lead {
   id: string;
@@ -23,33 +21,19 @@ export interface Lead {
   created_at: string;
 }
 
-function StatusBadge({ status }: { status: Lead['status'] }) {
-  const statusStyles = {
-    new: "bg-blue-100 text-blue-700 border-blue-200",
-    qualifying: "bg-amber-100 text-amber-700 border-amber-200",
-    qualified: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    disqualified: "bg-stone-100 text-stone-700 border-stone-200",
-    escalated: "bg-rose-100 text-rose-700 border-rose-200",
-  };
-
-  return (
-    <Badge variant="outline" className={`capitalize transition-colors ${statusStyles[status]}`}>
-      {status}
-    </Badge>
-  );
-}
-
 export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead[], clientId: string }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const router = useRouter();
-  
-  // Use a ref to access latest selectedLead in socket listener without re-binding
+
   const selectedLeadRef = useRef(selectedLead);
-  selectedLeadRef.current = selectedLead;
+  useEffect(() => {
+    selectedLeadRef.current = selectedLead;
+  }, [selectedLead]);
 
   const fetchMessages = async (leadId: string) => {
     try {
@@ -85,11 +69,9 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
     });
 
     socket.on("new_message", (msg: Message & { leadId: string }) => {
-      // If the message belongs to the currently selected lead, append it
       if (selectedLeadRef.current?.id === msg.leadId) {
         setMessages(prev => [...prev, msg]);
       }
-      // You could also show a notification or update a read/unread counter here
     });
 
     socket.on("lead_updated", (updatedLead: Lead) => {
@@ -101,8 +83,7 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
           return [updatedLead, ...prevLeads];
         }
       });
-      
-      // Update selected lead details if it matches
+
       if (selectedLeadRef.current?.id === updatedLead.id) {
         setSelectedLead(updatedLead);
       }
@@ -113,145 +94,186 @@ export function DashboardClient({ initialLeads, clientId }: { initialLeads: Lead
     };
   }, [clientId]);
 
+  // Derived metrics
+  const totalLeads = leads.length;
+  const qualifiedLeads = leads.filter(l => l.status === 'qualified').length;
+  const escalatedLeads = leads.filter(l => l.status === 'escalated').length;
+
   return (
-    <main className="min-h-screen bg-surface-container-low p-8 text-on-surface font-body-md">
-      <div className="max-w-[1440px] mx-auto space-y-8">
-        
-        {/* Header Section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-primary-pure">
-              Lead Intelligence
-            </h1>
-            <p className="text-text-muted mt-1">Modern Corporate AI Pipeline.</p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <Badge className={`${socketConnected ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border-rose-200'} transition-colors cursor-pointer border py-1.5 px-4 text-sm font-medium`}>
-              <span className={`flex h-2 w-2 rounded-full mr-2 animate-pulse ${socketConnected ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-              {socketConnected ? 'System Online (Live)' : 'Reconnecting...'}
-            </Badge>
-            <button
-              onClick={() => router.push('/settings')}
-              className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors"
-            >
-              <Settings size={16} />
-              <span>Settings</span>
-            </button>
-            <button
-              onClick={() => signOut()}
-              className="flex items-center space-x-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-medium text-gray-700 transition-colors"
-            >
-              <LogOut size={16} />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </div>
+    <div className="flex h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden">
+      
+      <button 
+        className="md:hidden fixed top-4 right-4 z-50 p-2 bg-white rounded-lg border border-slate-200 shadow-sm"
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+      >
+        {isMobileMenuOpen ? <X className="w-5 h-5 text-slate-500" /> : <Menu className="w-5 h-5 text-slate-500" />}
+      </button>
 
-        {/* KPIs */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="bg-surface-pure border-border-subtle shadow-sm rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-text-muted">Total Leads</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary-pure">{leads.length}</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-surface-pure border-border-subtle shadow-sm rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-text-muted">Qualified</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-emerald-600">
-                {leads.filter(l => l.status === 'qualified').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-surface-pure border-border-subtle shadow-sm rounded-xl">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-text-muted">Escalated</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-rose-600">
-                {leads.filter(l => l.status === 'escalated').length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      <Sidebar role="tenant" isMobileMenuOpen={isMobileMenuOpen} />
 
-        {/* Main Grid: Table & Chat */}
-        <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 bg-[#f8fafc]">
+        {/* TopAppBar */}
+        <header className="h-20 border-b border-slate-200 px-6 md:px-10 flex items-center justify-between shrink-0 bg-white">
+          <div className="flex items-center gap-4">
+            <div className="relative w-80 group">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
+              <input className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm shadow-sm transition-all outline-none" placeholder="Search leads, chats, or logs..." type="text" />
+            </div>
+          </div>
+          <div className="flex items-center gap-5">
+            <span className={`flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border ${socketConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'} transition-colors`}>
+              <span className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`}></span>
+              {socketConnected ? 'System Live' : 'Reconnecting...'}
+            </span>
+            <div className="h-6 w-px bg-slate-200 mx-1"></div>
+            <button className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full p-2.5 transition-colors relative">
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+              <Bell className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable Content */}
+        <main className="flex-1 overflow-y-auto px-6 md:px-10 py-8">
           
-          {/* Left Column: Leads Table */}
-          <Card className="bg-surface-pure border-border-subtle shadow-sm overflow-hidden rounded-2xl h-fit">
-            <CardHeader className="bg-surface-pure border-b border-border-subtle">
-              <CardTitle className="text-xl text-primary-pure">Recent Activity</CardTitle>
-              <CardDescription className="text-text-muted">Monitor your automated WhatsApp interactions.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-surface-container-lowest">
-                  <TableRow className="border-border-subtle hover:bg-transparent">
-                    <TableHead className="text-text-muted font-semibold h-12 px-6">Name</TableHead>
-                    <TableHead className="text-text-muted font-semibold h-12">Contact</TableHead>
-                    <TableHead className="text-text-muted font-semibold h-12">Company</TableHead>
-                    <TableHead className="text-text-muted font-semibold h-12">Budget</TableHead>
-                    <TableHead className="text-text-muted font-semibold h-12">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leads.length === 0 ? (
-                    <TableRow className="border-border-subtle">
-                      <TableCell colSpan={5} className="h-32 text-center text-text-muted">
-                        No leads detected. Start a conversation!
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    leads.map((lead) => (
-                      <TableRow 
-                        key={lead.id} 
-                        onClick={() => handleLeadClick(lead)}
-                        className={`border-border-subtle hover:bg-surface-container/50 transition-colors cursor-pointer ${selectedLead?.id === lead.id ? 'bg-surface-container-low' : ''}`}
-                      >
-                        <TableCell className="font-medium text-on-surface px-6 py-4">{lead.name}</TableCell>
-                        <TableCell className="text-text-muted">
-                          {lead.email}
-                          <br />
-                          <span className="text-xs">{lead.phone || 'No phone'}</span>
-                        </TableCell>
-                        <TableCell className="text-text-muted">{lead.company || '-'}</TableCell>
-                        <TableCell className="text-primary-container font-medium">
-                          {lead.budget ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(lead.budget)) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={lead.status} />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <div className="mb-8 animate-fade-in-up">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 mb-2">Lead Intelligence</h1>
+            <p className="text-slate-500 text-sm">Overview of your current lead pipeline and AI performance metrics.</p>
+          </div>
 
-          {/* Right Column: Live Chat View */}
-          <div className="h-[600px] flex flex-col">
-            <h2 className="text-sm font-semibold text-text-muted mb-3 uppercase tracking-widest">
-              Live Chat View
-              {loadingMessages && <span className="ml-2 text-xs normal-case animate-pulse">Loading...</span>}
-            </h2>
-            <div className="flex-1 min-h-0">
-              <ChatInterface 
-                messages={messages} 
-                leadName={selectedLead?.name}
-                leadId={selectedLead?.id}
-                clientId={clientId}
-              />
+          {/* Metric Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* Card 1: Total Leads */}
+            <div className="bg-white rounded-2xl p-6 lg:p-8 border border-slate-200 shadow-sm ring-1 ring-slate-900/5 hover:shadow-md transition-all animate-fade-in-up">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Leads</h3>
+                <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                  <Users className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-4">
+                <span className="text-3xl font-bold tracking-tight text-slate-900">{totalLeads}</span>
+              </div>
+            </div>
+
+            {/* Card 2: Qualified Leads */}
+            <div className="bg-white rounded-2xl p-6 lg:p-8 border border-slate-200 shadow-sm ring-1 ring-slate-900/5 hover:shadow-md transition-all animate-fade-in-up animate-delay-100">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Qualified</h3>
+                <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-4">
+                <span className="text-3xl font-bold tracking-tight text-slate-900">{qualifiedLeads}</span>
+              </div>
+            </div>
+
+            {/* Card 3: Escalated Leads */}
+            <div className="bg-white rounded-2xl p-6 lg:p-8 border border-slate-200 shadow-sm ring-1 ring-slate-900/5 hover:shadow-md transition-all animate-fade-in-up animate-delay-200">
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Escalated</h3>
+                <div className="p-2 rounded-xl bg-red-50 text-red-600">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-4">
+                <span className="text-3xl font-bold tracking-tight text-slate-900">{escalatedLeads}</span>
+              </div>
             </div>
           </div>
 
+          {/* Split Grid for Table and Chat */}
+          <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+
+            {/* Data Table Section */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm ring-1 ring-slate-900/5 animate-fade-in-up animate-delay-300 overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+                <h3 className="text-lg font-bold tracking-tight text-slate-900">Recent Leads</h3>
+              </div>
+              <div className="overflow-x-auto w-full flex-1">
+                <table className="w-full text-sm text-left whitespace-nowrap">
+                  <thead className="text-xs text-slate-500 bg-slate-50/80 sticky top-0 z-10 border-b border-slate-200 shadow-sm uppercase tracking-wider">
+                    <tr>
+                      <th className="px-6 py-4 font-bold">Lead Name</th>
+                      <th className="px-6 py-4 font-bold">Status</th>
+                      <th className="px-6 py-4 font-bold">Contact</th>
+                      <th className="px-6 py-4 font-bold">Est. Budget</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {leads.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="h-32 text-center text-slate-400">
+                          No leads detected. Start a conversation!
+                        </td>
+                      </tr>
+                  ) : (
+                    leads.map((lead) => {
+                      const isSelected = selectedLead?.id === lead.id;
+
+                      const statusConfig = {
+                        new: { bg: 'bg-blue-100', text: 'text-blue-700', ring: 'ring-blue-200', dot: 'bg-blue-500' },
+                        qualifying: { bg: 'bg-amber-100', text: 'text-amber-700', ring: 'ring-amber-200', dot: 'bg-amber-500' },
+                        qualified: { bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-200', dot: 'bg-emerald-500' },
+                        disqualified: { bg: 'bg-stone-100', text: 'text-stone-700', ring: 'ring-stone-200', dot: 'bg-stone-500' },
+                        escalated: { bg: 'bg-rose-100', text: 'text-rose-700', ring: 'ring-rose-200', dot: 'bg-rose-500' },
+                      };
+
+                      const conf = statusConfig[lead.status] || statusConfig.new;
+
+                      return (
+                        <tr
+                          key={lead.id}
+                          onClick={() => handleLeadClick(lead)}
+                          className={`group cursor-pointer relative z-10 transition-colors ${isSelected ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`}
+                        >
+                          <td className="px-6 py-4 relative">
+                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${isSelected ? 'bg-blue-600 opacity-100' : 'bg-blue-600 opacity-0 group-hover:opacity-100'} transition-all duration-300`}></div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shadow-sm ring-1 ring-blue-200/50">
+                                {lead.name.substring(0, 2).toUpperCase()}
+                              </div>
+                              <span className="font-semibold text-slate-700 group-hover:text-blue-600 transition-colors">{lead.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${conf.bg} ${conf.text} ring-1 ${conf.ring} flex inline-flex items-center gap-1.5 w-max`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${conf.dot}`}></span> {lead.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col text-sm text-slate-500 font-medium">
+                              <span>{lead.email}</span>
+                              <span className="text-[11px] text-slate-400">{lead.phone || '-'}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-semibold text-slate-700">
+                            {lead.budget ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(lead.budget)) : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Chat Section */}
+          <div className="h-[600px] flex flex-col bg-white rounded-2xl border border-slate-200 shadow-sm ring-1 ring-slate-900/5 animate-fade-in-up animate-delay-500 overflow-hidden">
+            <ChatInterface
+              messages={messages}
+              leadName={selectedLead?.name}
+              leadId={selectedLead?.id}
+              clientId={clientId}
+            />
+          </div>
+
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
+    </div>
   );
 }

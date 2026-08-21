@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import * as schema from '../../db/schema.js';
 import 'dotenv/config';
 
@@ -14,6 +14,19 @@ export class ClientRepository {
       where: eq(schema.clients.id, id)
     });
     return client || null;
+  }
+
+  async incrementTokenUsage(id: string, tokens: number) {
+    // We get the current usage, then update it. In Drizzle we can use sql operator, but simple fetch and update is fine for MVP.
+    const client = await this.findById(id);
+    if (client) {
+      const [updated] = await db.update(schema.clients)
+        .set({ tokenUsage: client.tokenUsage + tokens, updatedAt: new Date() })
+        .where(eq(schema.clients.id, id))
+        .returning();
+      return updated;
+    }
+    return null;
   }
 }
 
@@ -130,14 +143,34 @@ class LeadRepository {
   }
 
   async update(clientId: string, id: string, data: Partial<CreateLeadInput>) {
+    const updateData: any = { ...data, updatedAt: new Date() };
+    if (data.budget !== undefined) {
+      updateData.budget = data.budget?.toString() ?? null;
+    }
     const [lead] = await db.update(schema.leads)
-      .set({ ...data, updatedAt: new Date() })
+      .set(updateData)
       .where(and(
         eq(schema.leads.clientId, clientId),
         eq(schema.leads.id, id)
       ))
       .returning();
     return lead || null;
+  }
+
+  async findInactive(hours: number) {
+    const cutoffDate = new Date(Date.now() - hours * 60 * 60 * 1000);
+    return await db.query.leads.findMany({
+      where: (leads, { and, or, eq, lt }) => and(
+        or(
+          eq(leads.status, 'new'),
+          eq(leads.status, 'qualifying')
+        ),
+        lt(leads.updatedAt, cutoffDate)
+      ),
+      with: {
+        client: true
+      }
+    });
   }
 }
 
@@ -162,6 +195,14 @@ export class ConversationRepository {
     }
     return conversation;
   }
+
+  async updateAiPausedAt(id: string, aiPausedAt: Date | null) {
+    const [conversation] = await db.update(schema.conversations)
+      .set({ aiPausedAt })
+      .where(eq(schema.conversations.id, id))
+      .returning();
+    return conversation || null;
+  }
 }
 
 export class MessageRepository {
@@ -179,6 +220,26 @@ export class MessageRepository {
       where: eq(schema.messages.conversationId, conversationId),
       orderBy: (messages, { asc }) => [asc(messages.createdAt)],
     });
+  }
+
+  async listAllByClient(clientId: string) {
+    // Join messages -> conversations -> leads to filter by client and get lead name
+    const result = await db.select({
+      id: schema.messages.id,
+      role: schema.messages.role,
+      content: schema.messages.content,
+      createdAt: schema.messages.createdAt,
+      leadName: schema.leads.name,
+      channel: schema.conversations.platform
+    })
+    .from(schema.messages)
+    .innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+    .innerJoin(schema.leads, eq(schema.conversations.leadId, schema.leads.id))
+    .where(eq(schema.leads.clientId, clientId))
+    .orderBy(desc(schema.messages.createdAt))
+    .limit(100);
+
+    return result;
   }
 }
 

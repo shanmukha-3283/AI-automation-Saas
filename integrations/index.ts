@@ -1,5 +1,5 @@
 export {
-  whatsAppAdapter,
+  defaultWhatsAppAdapter,
   WhatsAppAdapter
 } from './whatsapp-adapter.js';
 

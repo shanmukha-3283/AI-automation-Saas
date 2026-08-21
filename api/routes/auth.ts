@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { db } from '../../db/schema.js'; // Note: db instance from repositories, or import from repositories directly
 import { eq } from 'drizzle-orm';
 import * as schema from '../../db/schema.js';
 

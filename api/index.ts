@@ -8,14 +8,16 @@ import { adminRoute } from './routes/admin.js';
 import { clientsRoute } from './routes/clients.js';
 import { leadsRoute } from './routes/leads.js';
 import { webhookRoute } from './routes/webhook.js';
-import { startFollowUpWorker } from '../workers/index.js';
+import { logsRoute } from './routes/logs.js';
+import { startFollowUpWorker, startCronJob } from '../workers/index.js';
 import 'dotenv/config';
 
 // Start Background Workers (only if Redis is configured)
 const redisUrl = process.env.REDIS_URL;
-if (redisUrl && redisUrl !== 'redis://localhost:6379') {
+if (redisUrl) {
   console.log('Starting BullMQ Background Workers...');
   startFollowUpWorker();
+  startCronJob();
 } else {
   console.log('⏭️  Skipping BullMQ workers (REDIS_URL not configured or is default localhost).');
 }
@@ -65,6 +67,7 @@ app.route('/api/admin', adminRoute);
 app.route('/api/clients', clientsRoute);
 app.route('/api/leads', leadsRoute);
 app.route('/api/webhook', webhookRoute);
+app.route('/api/logs', logsRoute);
 
 // Global Error Handler
 app.onError((err, c) => {

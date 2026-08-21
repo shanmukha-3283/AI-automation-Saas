@@ -21,9 +21,11 @@ export const followUpQueue = new Queue('FollowUpQueue', { connection });
 
 // 2. Define the Job Payload Interface
 export interface FollowUpJobData {
+  clientId: string;
   leadId: string;
   email: string;
   name: string;
+  phone: string;
   type: 'reminder' | 'check-in';
 }
 
@@ -33,24 +35,39 @@ export const startFollowUpWorker = () => {
   const worker = new Worker<FollowUpJobData>(
     'FollowUpQueue',
     async (job: Job<FollowUpJobData>) => {
-      console.log(`[Worker] Processing Job ${job.id} for lead: ${job.data.email}`);
+      console.log(`[Worker] Processing Job ${job.id} for lead: ${job.data.phone}`);
       
-      let subject = '';
-      let body = '';
+      const text = job.data.type === 'reminder' 
+        ? `Hi ${job.data.name}, this is a reminder for your upcoming appointment.`
+        : `Hi ${job.data.name}, just checking in to see if you had any more questions about our services!`;
 
-      if (job.data.type === 'reminder') {
-        subject = 'Reminder: Upcoming Appointment';
-        body = `Hi ${job.data.name},\nThis is a reminder for your upcoming appointment.`;
-      } else {
-        subject = 'Checking in!';
-        body = `Hi ${job.data.name},\nWe wanted to follow up on our last conversation.`;
-      }
+      // 1. Send via WhatsApp adapter
+      try {
+        const { clientRepository, conversationRepository, messageRepository } = await import('../api/repositories/index.js');
+        const { io } = await import('../api/index.js');
+        const { WhatsAppAdapter } = await import('../integrations/whatsapp-adapter.js');
+        
+        const client = await clientRepository.findById(job.data.clientId);
+        if (client) {
+           const adapter = new WhatsAppAdapter(
+             client.twilioAccountSid || undefined,
+             client.twilioAuthToken || undefined,
+             client.twilioPhoneNumber || undefined
+           );
+           
+           await adapter.sendMessage(job.data.phone, text);
+           console.log(`[Worker] WhatsApp message sent to ${job.data.phone}`);
 
-      // Delegate to our mock email sender
-      const success = await sendEmail(job.data.email, subject, body);
-
-      if (!success) {
-        throw new Error('Failed to send email');
+           // 2. Save to DB
+           const conversation = await conversationRepository.findOrCreate(job.data.clientId, job.data.leadId, 'whatsapp');
+           const agentMessage = await messageRepository.create(conversation.id, 'agent', text);
+           
+           // 3. Emit real-time update
+           io.to(client.id).emit('new_message', { ...agentMessage, leadId: job.data.leadId });
+        }
+      } catch (err) {
+        console.error(`[Worker] Failed to process WhatsApp logic:`, err);
+        throw err;
       }
 
       console.log(`[Worker] Job ${job.id} completed successfully.`);

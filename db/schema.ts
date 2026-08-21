@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, numeric, timestamp, pgEnum, unique } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, numeric, timestamp, pgEnum, unique, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 // Enums
@@ -18,6 +18,8 @@ export const clients = pgTable('clients', {
   twilioAuthToken: varchar('twilio_auth_token', { length: 255 }),
   twilioPhoneNumber: varchar('twilio_phone_number', { length: 50 }),
   systemPrompt: text('system_prompt'), // Custom AI prompt per client
+  escalationWebhookUrl: varchar('escalation_webhook_url', { length: 255 }), // Alert webhook
+  tokenUsage: integer('token_usage').default(0).notNull(), // Track LLM token usage
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -60,6 +62,7 @@ export const conversations = pgTable('conversations', {
   clientId: uuid('client_id').references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   leadId: uuid('lead_id').references(() => leads.id, { onDelete: 'cascade' }).notNull(),
   platform: varchar('platform', { length: 50 }).notNull().default('web'),
+  aiPausedAt: timestamp('ai_paused_at', { withTimezone: true }), // Track manual intervention
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
