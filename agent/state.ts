@@ -20,12 +20,15 @@ export interface LeadQualifierState {
   // Business logic outputs
   qualificationStatus: 'pending' | 'qualified' | 'disqualified' | 'escalated';
   confidenceScore: number; // 0 to 1
+  intent?: 'sales' | 'support' | 'other' | 'unknown';
+  appointmentTime?: string | null;
   
   // Any errors encountered in nodes (Rule #4)
   error?: string;
   
   // Tenancy 
   clientId: string;
+  leadId: string;
 }
 
 // Reducers define how state updates are applied.
@@ -50,7 +53,19 @@ export const leadQualifierStateChannels: StateGraphArgs<LeadQualifierState>["cha
     value: (x: string | undefined, y: string | undefined) => y,
     default: () => undefined,
   },
+  intent: {
+    value: (x: 'sales' | 'support' | 'other' | 'unknown' | undefined, y: 'sales' | 'support' | 'other' | 'unknown' | undefined) => y,
+    default: () => undefined,
+  },
+  appointmentTime: {
+    value: (x: string | null | undefined, y: string | null | undefined) => y,
+    default: () => undefined,
+  },
   clientId: {
+    value: (x: string, y: string) => y,
+    default: () => '',
+  },
+  leadId: {
     value: (x: string, y: string) => y,
     default: () => '',
   },

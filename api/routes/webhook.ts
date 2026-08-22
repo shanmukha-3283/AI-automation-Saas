@@ -97,6 +97,7 @@ webhookRoute.post('/:clientId', async (c) => {
       // Invoke the Lead Qualifier Graph
       const initialState: LeadQualifierState = {
         messages: langGraphMessages,
+        leadId: lead.id,
         extractedInfo: {
           name: lead.name !== 'Unknown User' ? lead.name : undefined,
           email: lead.email && !lead.email.endsWith('@wa.lead') ? lead.email : undefined,

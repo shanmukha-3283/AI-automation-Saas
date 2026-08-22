@@ -4,13 +4,14 @@ export const qualifyLead = async (state: LeadQualifierState): Promise<Partial<Le
   try {
     const { extractedInfo } = state;
     
-    // Simple business logic: need name and email to be qualified
-    // In a real scenario, this might check budget against minimums
+    // Business logic: require name, email, and a valid budget > 0
     if (extractedInfo.name && extractedInfo.email) {
-      if (extractedInfo.budget && extractedInfo.budget < 1000) {
-         return { qualificationStatus: 'disqualified' };
+      if (extractedInfo.budget !== undefined) {
+        if (extractedInfo.budget <= 0) {
+          return { qualificationStatus: 'disqualified' };
+        }
+        return { qualificationStatus: 'qualified' };
       }
-      return { qualificationStatus: 'qualified' };
     }
 
     // Need more info
